@@ -1,46 +1,98 @@
-import { useState, ChangeEvent } from 'react';
+import { useState, ChangeEvent, FormEvent, Fragment } from 'react';
+import { useAppDispatch } from '../../hooks';
+import { postCommentAction } from '../../store/api-actions';
 
-function ReviewForm(): JSX.Element {
+type ReviewFormProps = {
+  offerId: string;
+};
+
+const RATING_STARS = [
+  { value: 5, title: 'perfect' },
+  { value: 4, title: 'good' },
+  { value: 3, title: 'not bad' },
+  { value: 2, title: 'badly' },
+  { value: 1, title: 'terribly' },
+];
+
+function ReviewForm({ offerId }: ReviewFormProps): JSX.Element {
   const [formData, setFormData] = useState({
     rating: 0,
-    review: ''
+    review: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const dispatch = useAppDispatch();
 
   const handleFieldChange = (evt: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = evt.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData({
+      ...formData,
+      [name]: name === 'rating' ? Number(value) : value,
+    });
   };
 
+  const handleSubmit = (evt: FormEvent<HTMLFormElement>) => {
+    evt.preventDefault();
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    dispatch(
+      postCommentAction({
+        offerId,
+        comment: formData.review,
+        rating: formData.rating,
+      })
+    )
+      .unwrap()
+      .then(() => {
+        setFormData({
+          rating: 0,
+          review: '',
+        });
+      })
+      .catch(() => {
+        setSubmitError('Failed to post review. Please try again.');
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
+  };
+
+  const isSubmitDisabled =
+    isSubmitting ||
+    formData.rating === 0 ||
+    formData.review.length < 50 ||
+    formData.review.length > 300;
+
   return (
-    <form className="reviews__form form" action="#" method="post">
+    <form className="reviews__form form" action="#" method="post" onSubmit={handleSubmit}>
       <label className="reviews__label form__label" htmlFor="review">Your review</label>
       <div className="reviews__rating-form form__rating">
-        <input className="form__rating-input visually-hidden" name="rating" value="5" id="5-stars" type="radio" onChange={handleFieldChange} checked={formData.rating === 5} />
-        <label htmlFor="5-stars" className="reviews__rating-label form__rating-label" title="perfect">
-          <svg className="form__star-image" width="37" height="33"><use xlinkHref="#icon-star"></use></svg>
-        </label>
-
-        <input className="form__rating-input visually-hidden" name="rating" value="4" id="4-stars" type="radio" onChange={handleFieldChange} checked={formData.rating === 4} />
-        <label htmlFor="4-stars" className="reviews__rating-label form__rating-label" title="good">
-          <svg className="form__star-image" width="37" height="33"><use xlinkHref="#icon-star"></use></svg>
-        </label>
-
-        <input className="form__rating-input visually-hidden" name="rating" value="3" id="3-stars" type="radio" onChange={handleFieldChange} checked={formData.rating === 3} />
-        <label htmlFor="3-stars" className="reviews__rating-label form__rating-label" title="not bad">
-          <svg className="form__star-image" width="37" height="33"><use xlinkHref="#icon-star"></use></svg>
-        </label>
-
-        <input className="form__rating-input visually-hidden" name="rating" value="2" id="2-stars" type="radio" onChange={handleFieldChange} checked={formData.rating === 2} />
-        <label htmlFor="2-stars" className="reviews__rating-label form__rating-label" title="badly">
-          <svg className="form__star-image" width="37" height="33"><use xlinkHref="#icon-star"></use></svg>
-        </label>
-
-        <input className="form__rating-input visually-hidden" name="rating" value="1" id="1-star" type="radio" onChange={handleFieldChange} checked={formData.rating === 1} />
-        <label htmlFor="1-star" className="reviews__rating-label form__rating-label" title="terribly">
-          <svg className="form__star-image" width="37" height="33"><use xlinkHref="#icon-star"></use></svg>
-        </label>
+        {RATING_STARS.map(({ value, title }) => (
+          <Fragment key={value}>
+            <input
+              className="form__rating-input visually-hidden"
+              name="rating"
+              value={value}
+              id={`${value}-stars`}
+              type="radio"
+              onChange={handleFieldChange}
+              checked={formData.rating === value}
+              disabled={isSubmitting}
+            />
+            <label
+              htmlFor={`${value}-stars`}
+              className="reviews__rating-label form__rating-label"
+              title={title}
+            >
+              <svg className="form__star-image" width="37" height="33">
+                <use xlinkHref="#icon-star"></use>
+              </svg>
+            </label>
+          </Fragment>
+        ))}
       </div>
-
       <textarea
         className="reviews__textarea form__textarea"
         id="review"
@@ -48,12 +100,22 @@ function ReviewForm(): JSX.Element {
         placeholder="Tell how was your stay, what you like and what can be improved"
         onChange={handleFieldChange}
         value={formData.review}
+        disabled={isSubmitting}
       />
+      {submitError && (
+        <p style={{ color: '#ff4d4f', margin: '0 0 10px' }}>{submitError}</p>
+      )}
       <div className="reviews__button-wrapper">
         <p className="reviews__help">
           To submit review please make sure to set <span className="reviews__star">rating</span> and describe your stay with at least <b className="reviews__text-amount">50 characters</b>.
         </p>
-        <button className="reviews__submit form__submit button" type="submit" disabled={!formData.rating || formData.review.length < 50}>Submit</button>
+        <button
+          className="reviews__submit form__submit button"
+          type="submit"
+          disabled={isSubmitDisabled}
+        >
+          Submit
+        </button>
       </div>
     </form>
   );
